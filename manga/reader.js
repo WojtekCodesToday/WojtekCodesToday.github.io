@@ -232,14 +232,17 @@ function updateNavButtons() {
 const bitmapPool = new Map();
 
 async function findActiveProvider() {
-    const localBase = window.location.origin + "/manga/";
+    const isLocal = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+    const localBase = isLocal ? (window.location.origin + "/") : (window.location.origin + "/manga/");
     
     let providers = [];
     try {
-        const resp = await fetch(localBase + 'providers.json');
-        if (resp.ok) providers = await resp.json();
+        const resp = await fetch('providers.json?v=' + Date.now());
+        if (resp.ok && resp.headers.get("content-type")?.includes("json")) {
+            providers = await resp.json();
+        }
     } catch (e) {
-        console.warn("providers.json not found, continuing with 'self' only.");
+        console.warn("providers.json fetch failed, using fallback logic.");
     }
 
     const normalize = (u) => {
@@ -249,28 +252,27 @@ async function findActiveProvider() {
         return t.endsWith('/') ? t : t + '/';
     };
 
-    if (activeProvider !== null && activeProvider !== undefined && activeProvider !== "") {
-        const idx = parseInt(activeProvider);
-        if (!isNaN(idx) && providers[idx]) {
-            return normalize(providers[idx]);
-        }
-        return normalize(activeProvider);
-    }
-
-    const searchList = ["self", ...providers];
+    const searchList = providers.length ? providers : ["self"];
     const fileName = `${manga}/v${volume}_c${chapter}.bin`;
 
     for (let p of searchList) {
         const baseUrl = normalize(p);
         try {
-            const check = await fetch(`${baseUrl}${fileName}`, { method: 'HEAD' });
-            if (check.ok) {
+            const check = await fetch(`${baseUrl}${fileName}`, { 
+                method: 'GET', 
+                headers: { 'Range': 'bytes=0-0' } 
+            });
+
+            const contentType = check.headers.get("Content-Type") || "";
+            
+            if ((check.ok || check.status === 206) && !contentType.includes("text/html")) {
+                console.log(`Matched Provider: ${baseUrl}`);
                 const foundIdx = providers.indexOf(p);
                 activeProvider = (p === "self") ? null : (foundIdx !== -1 ? foundIdx : p);
                 return baseUrl;
             }
         } catch (e) {
-            console.warn(`Provider ${baseUrl} is unreachable.`);
+            console.warn(`Provider ${baseUrl} unreachable.`);
         }
     }
 
@@ -290,7 +292,6 @@ async function loadManga() {
     }
     
     const fileUrl = `${providerBase}${manga}/v${volume}_c${chapter}.bin`;
-    console.log("Current provider: "+providerBase)
     loadsettings();
     worker.postMessage({ fileUrl });
 

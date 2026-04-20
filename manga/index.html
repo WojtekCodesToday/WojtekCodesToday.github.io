@@ -120,7 +120,7 @@
 
             window.location.href = url.toString();
         };
-
+        
         async function loadMangaList() {
             try {
                 const params = new URLSearchParams(window.location.search);
@@ -129,8 +129,8 @@
                 const filterC = params.get("c");
                 const filterM = params.get("m");
                 const startPage = params.get("p") || "0";
-
-                const provRes = await fetch(`manga/providers.json`).catch(() => ({ json: () => [] }));
+                let provRes = await fetch(`manga/providers.json`).catch(() => ({ json: () => [] }));
+                if(!provRes.ok) provRes = await fetch(`providers.json`).catch(() => ({ json: () => [] }));
                 const jsonProviders = await provRes.json();
                 const urlProv = params.get("prov");
 
