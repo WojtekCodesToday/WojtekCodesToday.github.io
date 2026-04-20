@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog Post</title>
+    <link href="https://fonts.cdnfonts.com/css/komika-hands" rel="stylesheet">
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="../blog.css">
+    <script src="../main.js"></script>
+    <script type="module" src="../hamburger.js"></script>
+</head>
+<body>
+    <div id="bg">
+    </div>
+    <div id="page">
+        <h1><a class="manga_panel" href="/blog">wjgm's blog</a></h1>
+        <main id="content" class="manga_panel blog_post"></main>
+        
+        <nav style="margin-top: 20px;">
+            <button onclick="window.location.href='/'">← Back Home</button>
+        </nav>
+    </div>
+    
+    <script type="module">
+    import roost from "https://cdn.jsdelivr.net/gh/WojtekCodesToday/roostjs@master/roost.min.mjs"
+    import "../lib/roost-ext-md.js"
+    
+    const content = document.getElementById('content');
+    const pathParts = window.location.pathname.split('/').filter(p => p);
+    const slug = pathParts.length > 1 ? pathParts.pop() : null;
+    const params = new URLSearchParams(window.location.search);
+    const queryStr = params.toString();
+    const hasQuery = queryStr.length > 0;
+
+    const q = params.get("q")?.toLowerCase() || false;
+    console.log(q)
+    if (!q) {
+        fetch('/blog/list.json')
+        .then(res => res.json())
+        .then(posts => {
+            if (posts.length === 0) {
+                content.innerHTML = "<p>No posts found yet.</p>";
+                return;
+            }
+            
+            let listObj = {};
+            posts.forEach((post, i) => {
+                listObj[`div-${i}`] = {
+                class: "manga_panel",
+                style: "margin-bottom:15px; cursor:pointer; display:flex; align-items:center;", 
+                    child: {
+                        [`span-${i}`]: {
+                            child: "> ",
+                            style: "font-weight:bold; margin-right:10px;"
+                        },
+                        [`a-${i}`]: {
+                            href: `/blog/?q=${post}`,
+                            child: post.replace(/-/g, ' ').toUpperCase(),
+                            style: "text-decoration:none; border-width:0px; background-color:inherit; color:inherit; flex-grow:1;"
+                        }
+                    }
+                };
+            });
+            content.innerHTML = `<h2>blogs ive made so far</h2>${roost.convert(listObj)}`;
+        });
+    } else {
+        fetch(`/blog/${q}.md`)
+        .then(res => {
+            if (!res.ok) throw new Error();
+            return res.text();
+        })
+        .then(markdown => {
+            const parsed = roost.extensions.md.parse(markdown);
+            content.innerHTML = roost.convert(parsed);
+            document.title = q;
+        })
+        .catch(() => {
+            content.innerHTML = "<h1>404</h1><p>blog post redacted or lost.</p>";
+        });
+    }
+</script>
+</body>
+</html>

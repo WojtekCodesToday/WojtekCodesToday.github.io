@@ -1,0 +1,136 @@
+<!doctype html>
+<html>
+
+<head>
+    <link href="https://fonts.cdnfonts.com/css/komika-hands" rel="stylesheet" />
+    <link rel="stylesheet" href="../style.css" />
+    <link rel="stylesheet" href="manga.css">
+    <script src="https://cdn.jsdelivr.net/gh/jagenjo/Canvas2DtoWebGL/src/gl-matrix-min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/jagenjo/Canvas2DtoWebGL/src/litegl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/jagenjo/Canvas2DtoWebGL/src/Canvas2DtoWebGL.js"></script>
+    <script src="../main.js"></script>
+    <script type="module" src="../hamburger.js"></script>
+
+</head>
+
+<body>
+    <div id="ui" class="manga_panel">Loading...</div>
+    <div id="warning" class="manga_panel">Use your mouse to drag, or up/down keys to read the manga, double click to
+        zoom.</div>
+    <div id="container">
+        <canvas id="mangaCanvas"></canvas>
+        <div id="scroll-buffer">
+        </div>
+    </div>
+    <div id="nav-footer">
+        <button id="previous" class="chapter_button">Previous chapter</button>
+        <button id="next" class="chapter_button">Next chapter</button>
+    </div>
+    <div id="settings" class="manga_panel">
+        <h2>Settings</h2>
+        <label for="selread">Reading mode:</label>
+        <select id="selread">
+            <option value="0" selected="selected">On two pages</option>
+            <option value="1">Comic strip</option>
+        </select>
+        <input type="checkbox" id="chkhq">
+        <label for="chkhq">High quality resolution (beta?)</label>
+        <hr>
+        <h3>Other</h3>
+        <input type="checkbox" name="chkdebug" id="chkdebug">
+        <label for="chkdebug">Debug mode</label>
+    </div>
+    <script>
+        const script = document.createElement('script');
+        const params = new URLSearchParams(window.location.search);
+        const defaultv = ["wchan", 1];
+        let manga = params.get("m") || defaultv[0];
+        let volume = params.get("v") || defaultv[1];
+        let chapter = params.get("c") || defaultv[1];
+        mobile = params.get("mobile") || mobile;
+        const startPage = parseInt(params.get("p")) || 0;
+        // NEW: Provider logic
+        const defaultProviders = [
+            window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1), // Current site
+            "https://cdn.mangasite.com/data/", // Example fallback 1
+            "https://mirror.another-provider.io/library/" // Example fallback 2
+        ];
+        
+        // Use 'prov' param if it exists, otherwise we'll probe later
+        let activeProvider = params.get("prov");
+        // 2. High-DPI Quality Fix
+        const dpr = window.devicePixelRatio || 1;
+        let settings = {
+            mode: mobile ? 1 : 0,
+            debug: false,
+            upscale: false,
+        };
+        let settingsparam = params.get("settings") || JSON.stringify(settings);
+        if(JSON.parse(settingsparam)!=settings){settings=JSON.parse(settingsparam)}
+        let resize_canv = true;
+        const canvas = document.getElementById("mangaCanvas");
+        const ctx = typeof enableWebGLCanvas=="function"?enableWebGLCanvas(canvas):canvas.getContext("2d");
+        const container = document.getElementById("container");
+        const buffer = document.getElementById("scroll-buffer");
+        const ui = document.getElementById("ui");
+
+        const next = document.getElementById("next");
+        const previous = document.getElementById("previous");
+        const settingsEl = document.getElementById("settings");
+
+        let currentHitBoxes = [];
+        let mangaData = null;
+        let visible = true;
+        let isZoomed = false;
+        let isDragging = false;
+        let startX, startY, startScrollLeft, startScrollTop;
+        const mangas = { w: 0, h: 0 };
+        let activeTooltip = null; // To track if a note is being shown
+        const tooltipEl = document.createElement("div"); // Create a tooltip element
+        tooltipEl.id = "manga-tooltip";
+        tooltipEl.className = "manga_panel"
+
+        const chapterCache = new Map();
+        const MAX_CACHE_SIZE = 3; // Keep current + 1 previous + 1 next
+        let chaptersList = [];
+        let currentChapterIdx = -1;
+        let fetched = false;
+
+        const prsy = {
+            configs: [],
+            // Pass 'fn' as a function: () => chapter
+            add: function (key, fn, def) {
+                this.configs.push({ key, fn, def });
+            },
+            params: function () {
+                let parts = [];
+                this.configs.forEach(conf => {
+                    const currentVal = conf.fn(); // Call the function to get live value
+                    if (currentVal !== conf.def) {
+                        parts.push(`${conf.key}=${currentVal}`);
+                    }
+                });
+                return parts.join("&");
+            }
+        }
+
+        // Pass them as arrow functions so they stay linked to the live variables
+        prsy.add("m", () => manga, defaultv[0]);
+        prsy.add("v", () => volume, defaultv[1]);
+        prsy.add("c", () => chapter, defaultv[1]);
+        prsy.add("prov", () => activeProvider, null);
+        prsy.add("settings", () => JSON.stringify(settings), null);
+        if(false){
+            script.src = "reader-m.js";
+        } else {
+            script.src = "reader.js";
+        }
+
+        document.body.appendChild(script);
+    </script>
+    </script>
+    <script src="ui.js"></script>
+
+</body>
+
+</html>

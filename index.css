@@ -1,0 +1,30 @@
+
+#bg {
+    position: fixed; 
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: 
+        radial-gradient(#00000033 5px, transparent 0) 0 0 / 4px 4px,
+        url("./img/bg.png");
+    
+    z-index: -1;     
+    overflow: hidden;
+    background-size: 4px 4px, 10cm;
+    background-repeat: repeat, repeat;
+    filter:blur(4px);
+}
+
+#page{
+    --page-width:630px;
+    margin-top: 75px;
+}
+
+@media (min-width:960px) {
+    #page {
+        margin-top: 0px;
+        margin-left: calc(100% - var(--page-width));
+        width: var(--page-width);
+    }
+}

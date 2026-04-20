@@ -1,0 +1,130 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: #fff;
+}
+
+/* This allows UI to sit on top but let clicks through if necessary */
+#container {
+    display: none;
+    flex: 1;
+    overflow: auto;
+    /* Allows both X and Y scrolling */
+    position: relative;
+    scrollbar-width: none;
+    z-index: 1;
+    touch-action: none; 
+    user-select: none;
+    -webkit-overflow-scrolling: touch;
+    transform: translateZ(0);
+    will-change: transform;
+    /* Improves touch response */
+    image-rendering: -webkit-optimize-contrast;
+}
+
+#mangaCanvas {
+    position: sticky;
+    top: 0;
+    left: 0;
+    display: block;
+    z-index: 1;
+    touch-action: none;
+    
+    /* 1. Force the GPU to handle the scaling */
+    transform: translateZ(0);
+    
+    /* 2. Best for high-quality compressed lineart */
+    image-rendering: -webkit-optimize-contrast; /* Best for Chromium (Chrome/Edge) */
+    image-rendering: crisp-edges;               /* Best for Firefox */
+}
+
+/* Optional: Subtle sharpening filter if zoomed */
+.is-zoomed #mangaCanvas {
+    filter: contrast(1.05) brightness(1.02);
+}
+
+html[style*="--dark-mode"] #mangaCanvas {
+    filter: invert(0);
+}
+html[style*="--light-mode"] #mangaCanvas {
+    filter: invert(0);
+}
+
+#scroll-buffer {
+    width: 1px;
+    pointer-events: none;
+}
+
+
+#ui {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 10;
+}
+
+#warning {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: none;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.chapter_button {
+    position:absolute;
+    z-index: 100;
+    display: none;
+}
+
+#manga-tooltip {
+    position: fixed;
+    display: none;
+    padding: 10px 15px;
+    font-size: 14px;
+    pointer-events: none; 
+    z-index: 99999;
+    max-width: 250px;
+    white-space: pre-wrap;
+}
+
+#container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: auto;
+}
+
+#scroll-buffer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
+#settings {
+    position: absolute;
+    top: 0;
+    left:0;
+    bottom: 0;
+    right:0;
+    z-index: 256;
+    position: fixed;
+    inset: 0px;
+    width: 280px;
+    height: 400px;
+    margin: auto;
+    display: none;
+}
+
+select{
+    background: #fff;
+    border: 2px solid #000;
+    font-family: var(--font);
+}

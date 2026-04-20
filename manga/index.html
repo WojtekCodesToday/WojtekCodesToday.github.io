@@ -1,0 +1,288 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manga</title>
+    <link href="https://fonts.cdnfonts.com/css/komika-hands" rel="stylesheet">
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="../blog.css">
+    <script src="../main.js"></script>
+    <script type="module" src="../hamburger.js"></script>
+    <style>
+        .search-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+        }
+
+        #searchQ,
+        #searchM {
+            grid-column: span 2;
+        }
+
+        .vol-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            margin: 20px 0 20px 20px;
+            gap: 20px;
+        }
+
+        @media (max-width: 700px) {
+            .search-grid {
+                grid-template-columns: 1fr;
+            }
+
+            #searchQ,
+            #searchM {
+                grid-column: span 1;
+            }
+
+            .vol-header {
+                margin-left: 10px !important;
+                gap: 10px;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="bg">
+    </div>
+    <div id="page">
+        <main id="content" class="manga_panel blog_post"></main>
+        <br>
+        <div class="manga_panel">
+            <h2>Q&A:</h2>
+            <ul>
+                <li>Is this piracy?<ul>No, i make the content myself.<br>thanks for asking though.<br>Also the mangas are provided through a repository/provider.</ul>
+                </li>
+                <br>
+                <li>Where can i donate to you?<ul>Currently nowhere, i will be thinking of that however :)</ul>
+                </li>
+                <br>
+                <li>The reader sucks!!<ul>I am aware of that, and i am trying to expand upon it, i know its a bit
+                        jank...</ul>
+                </li>
+            </ul>
+        </div>
+        <nav style="margin-top: 20px;">
+            <button onclick="window.location.href='/'">← Back Home</button>
+        </nav>
+    </div>
+    <script type="module">
+        import roost from "https://cdn.jsdelivr.net/gh/WojtekCodesToday/roostjs@master/roost.min.mjs"
+
+        const content = document.getElementById('content');
+
+        const searchUI = {
+            "div-search": {
+                class: "search-grid",
+                child: {
+                    "input-q": { type: "text", class: "manga_panel", placeholder: "Chapter name...", id: "searchQ", style: "padding: 8px;" },
+                    "input-v": { type: "number", class: "manga_panel", placeholder: "Volume", id: "searchV", min: "1", style: "padding: 8px;" },
+                    "input-c": { type: "number", class: "manga_panel", placeholder: "Chapter", id: "searchC", min: "1", style: "padding: 8px;" },
+                    "select-m": { class: "manga_panel", id: "searchM", style: "padding: 8px;", child: { "option-0": { value: "", child: "All Series" } } },
+                    "button-exec": {
+                        class: "manga_panel",
+                        style: "padding: 10px; cursor: pointer;",
+                        child: "SEARCH",
+                        onclick: "window.applySearch()"
+                    },
+                    "button-clear": {
+                        class: "manga_panel",
+                        style: "padding: 10px; cursor: pointer;",
+                        child: "CLEAR",
+                        onclick: "window.location.href=window.location.pathname"
+                    }
+                }
+            }
+        };
+
+        window.applySearch = () => {
+            const q = document.getElementById('searchQ').value;
+            const v = document.getElementById('searchV').value;
+            const c = document.getElementById('searchC').value;
+            const m = document.getElementById('searchM').value;
+
+            const url = new URL(window.location.href);
+            if (q) url.searchParams.set("q", q); else url.searchParams.delete("q");
+            if (v) url.searchParams.set("v", v); else url.searchParams.delete("v");
+            if (c) url.searchParams.set("c", c); else url.searchParams.delete("c");
+            if (m) url.searchParams.set("m", m); else url.searchParams.delete("m");
+
+            window.location.href = url.toString();
+        };
+
+        async function loadMangaList() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const filterQ = params.get("q")?.toLowerCase() || "";
+                const filterV = params.get("v");
+                const filterC = params.get("c");
+                const filterM = params.get("m");
+                const startPage = params.get("p") || "0";
+
+                const provRes = await fetch(`manga/providers.json`).catch(() => ({ json: () => [] }));
+                const jsonProviders = await provRes.json();
+                const urlProv = params.get("prov");
+
+                const norm = (u) => {
+                    if (!u || u === "self") return "manga/";
+                    let t = u.trim();
+                    if (!t.startsWith('http')) t = 'https://' + t;
+                    return t.endsWith('/') ? t : t + '/';
+                };
+
+                const uniqueProviders = [...jsonProviders];
+                if (urlProv && !uniqueProviders.includes(urlProv)) uniqueProviders.push(urlProv);
+                const allBaseUrls = uniqueProviders.map(norm);
+
+                const providerData = await Promise.all(allBaseUrls.map(async (base, pIdx) => {
+                    try {
+                        const regReq = await fetch(`${base}mangas.json`);
+                        if (!regReq.ok) return null;
+                        const registry = await regReq.json();
+
+                        let provID = pIdx - 1;
+                        if (provID >= jsonProviders.length) provID = urlProv;
+
+                        const manifests = await Promise.all(registry.map(async (manga) => {
+                            try {
+                                const chReq = await fetch(`${base}${manga.c}/ch.json`);
+                                console.log(chReq)
+                                return chReq.ok ? { manga: manga.c, chapters: await chReq.json(), meta: manga } : null;
+                            } catch { return null; }
+                        }));
+
+                        return { provID, manifests: manifests.filter(m => m) };
+                    } catch { return null; }
+                }));
+
+                const activeData = providerData.filter(p => p);
+
+                const masterRegistry = new Map();
+                const mergedLibrary = new Map();
+
+                activeData.forEach(prov => {
+                    prov.manifests.forEach(m => {
+                        if (!masterRegistry.has(m.manga)) masterRegistry.set(m.manga, m.meta);
+
+                        if (!mergedLibrary.has(m.manga)) mergedLibrary.set(m.manga, new Map());
+                        const seriesMap = mergedLibrary.get(m.manga);
+
+                        m.chapters.forEach(ch => {
+                            const key = `${ch.v}_${ch.c}`;
+                            if (!seriesMap.has(key)) {
+                                seriesMap.set(key, { ...ch, sources: [] });
+                            }
+                            seriesMap.get(key).sources.push(prov.provID);
+                        });
+                    });
+                });
+
+                masterRegistry.forEach((entry, code) => {
+                    searchUI["div-search"].child["select-m"].child[`option-${code}`] = {
+                        value: code, child: entry.n
+                    };
+                });
+
+                let listObj = {};
+                let seriesIndex = 0;
+                masterRegistry.forEach((entry, code) => {
+                    if (filterM && code !== filterM) return;
+
+                    let chapters = Array.from(mergedLibrary.get(code).values());
+
+                    if (filterV) chapters = chapters.filter(ch => String(ch.v) === filterV);
+                    if (filterC) chapters = chapters.filter(ch => String(ch.c) === filterC);
+                    if (filterQ) chapters = chapters.filter(ch => ch.n.toLowerCase().includes(filterQ));
+
+                    if (chapters.length > 0) {
+                        chapters.sort((a, b) => b.v - a.v || b.c - a.c);
+                        const maxVol = Math.max(...chapters.map(ch => ch.v));
+                        listObj[`hr-${seriesIndex}`] = {};
+                        let lastVol = null;
+
+                        chapters.forEach((chapter, j) => {
+                            if (chapter.v !== lastVol) {
+                                const isLatest = chapter.v === maxVol;
+                                const primarySourceIdx = chapter.sources[0];
+
+                                let imageBase = allBaseUrls[primarySourceIdx + 1] || "/manga/";
+                                listObj[`div-vol-header-${seriesIndex}-${chapter.v}`] = {
+                                    class: "vol-header",
+                                    child: {
+                                        [`img-v-${seriesIndex}-${chapter.v}`]: {
+                                            src: `${imageBase}${code}/v${chapter.v}.png`   .replace(/([^:]\/)\/+/g, "$1"),
+                                            onerror: "this.style.display='none'",
+                                            style: "width: 120px; cursor: pointer; border: 1px solid #000; flex-shrink: 0;",
+                                            onclick: `window.location.href='/manga/reader?m=${code}&v=${chapter.v}&c=${chapter.c}'`
+                                        },
+                                        [`div-vol-info-${seriesIndex}-${chapter.v}`]: {
+                                            style: "display: flex; flex-direction: column;",
+                                            child: {
+                                                [`span-vol-name-${seriesIndex}-${chapter.v}`]: {
+                                                    child: isLatest ? entry.n : `Volume ${chapter.v}`,
+                                                    style: "font-size: 1.4rem; font-weight: bold; text-transform: uppercase;"
+                                                },
+                                                ...(entry.d && isLatest ? {
+                                                    [`span-vol-desc-${seriesIndex}-${chapter.v}`]: {
+                                                        child: entry.d,
+                                                        style: "font-size: 0.9rem; opacity: 0.8; margin-top: 5px; max-width: 400px;"
+                                                    }
+                                                } : {})
+                                            }
+                                        }
+                                    }
+                                };
+                                lastVol = chapter.v;
+                            }
+
+                            let provParam = "";
+                            const hasSelf = chapter.sources.includes(-1);
+                            if (!hasSelf && chapter.sources.length === 1) {
+                                provParam = `&prov=${chapter.sources[0]}`;
+                            }
+
+                            const qStr = `?m=${code}&v=${chapter.v}&c=${chapter.c}${provParam}${startPage == "0" ? "" : `&p=${startPage}`}`;
+                            listObj[`div-ch-${seriesIndex}-${j}`] = {
+                                class: "manga_panel",
+                                style: "margin-bottom:10px; cursor:pointer; display:flex; flex-direction:column; padding:12px; margin-left: 20px;",
+                                onclick: `window.location.href='/manga/reader${qStr}'`,
+                                child: {
+                                    [`span-meta-${seriesIndex}-${j}`]: {
+                                        child: `${entry.n} — vol ${chapter.v} ch ${chapter.c}`,
+                                        style: "font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;"
+                                    },
+                                    [`span-title-${seriesIndex}-${j}`]: {
+                                        child: chapter.n,
+                                        style: "font-size: 1.1rem; font-weight: bold;"
+                                    }
+                                }
+                            };
+                        });
+                        seriesIndex++;
+                    }
+                });
+
+                content.innerHTML = roost.convert(searchUI) + `<div id="results">${roost.convert(listObj) || "<p>Nothing found.</p>"}</div>`;
+
+            } catch (err) {
+                content.innerHTML = "<h2>Library Error</h2>";
+                console.error(err);
+            }
+        }
+
+        loadMangaList();
+    </script>
+</body>
+
+</html>

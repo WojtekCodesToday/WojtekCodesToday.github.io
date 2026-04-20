@@ -1,0 +1,66 @@
+html {
+    --font: 'Komika Hand', sans-serif;
+    filter: var(--light-mode);
+    --dark-mode: invert(1) hue-rotate(180deg);
+    --light-mode: 0;
+}
+
+div {
+    --panel-width: 15px;
+    --panel-space-w: 5px;
+}
+
+button {
+    --panel-width: 5px;
+    --panel-space-w: 5px;
+    box-shadow: 4px 4px 0px #000;
+}
+
+button:hover {
+    background: #e6e6e6;
+}
+
+.manga_panel,
+button {
+    border-style: solid;
+    border-color: #000;
+    font-family: var(--font);
+    padding: var(--panel-width);
+    margin-left: var(--panel-space-w);
+    margin-right: var(--panel-space-w);
+    margin-top: var(--panel-space-h);
+    margin-bottom: var(--panel-space-h);
+    background: #fff;
+    color: #000;
+
+}
+
+a {
+    color: #000;
+    text-decoration: underline;
+}
+
+button:active {
+    transform: translate(3px, 3px);
+    box-shadow: 1px 1px 0px #000;
+}
+
+hr {
+    border-bottom: 2px solid #000;
+}
+
+input[type="checkbox"] {
+    /*outline: 2px solid #000;*/
+    border-radius: 0px;
+    cursor: pointer;
+    display: inline-block;
+    color: #fff;
+    background: #fff;
+    width: 1rem;
+    height: 1rem;
+    accent-color:#000;
+}
+
+label{
+    cursor: pointer;
+}
