@@ -45,6 +45,10 @@ function hamburger() {
                             child: "manga", 
                             onclick: "window.location.href='/manga'" 
                         },
+                        "button-art": { 
+                            child: "art", 
+                            onclick: "window.location.href='/art'" 
+                        },
                         "button-theme": { 
                             child: "toggle theme", 
                             onclick: "theme_toggle()" 
