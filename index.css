@@ -21,7 +21,7 @@
     margin-top: 75px;
 }
 
-@media (min-width:960px) {
+@media (min-width:1394px) {
     #page {
         margin-top: 0px;
         margin-left: calc(100% - var(--page-width));
