@@ -82,14 +82,14 @@ html[style*="--light-mode"] #mangaCanvas {
 }
 
 #manga-tooltip {
-    position: fixed;
+    position: fixed; /* Must be fixed to use clientX/Y */
     display: none;
     padding: 10px 15px;
     font-size: 14px;
     pointer-events: none; 
     z-index: 99999;
     max-width: 250px;
-    white-space: pre-wrap;
+    white-space: pre-wrap; /* Preserve line breaks in notes */
 }
 
 #container {
@@ -98,14 +98,14 @@ html[style*="--light-mode"] #mangaCanvas {
     left: 0;
     width: 100vw;
     height: 100vh;
-    overflow: auto;
+    overflow: auto; /* Enable native scrolling */
 }
 
 #scroll-buffer {
     position: absolute;
     top: 0;
     left: 0;
-    pointer-events: none;
+    pointer-events: none; /* Let clicks hit the canvas */
 }
 
 #settings {
