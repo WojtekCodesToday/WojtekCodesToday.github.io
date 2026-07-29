@@ -266,7 +266,7 @@ export default {
                                         src: `${imageBase}${code}/v${chapter.v}.png`.replace(/([^:]\/)\/+/g, "$1"),
                                         onerror: "this.style.display='none'",
                                         style: "width: 120px; cursor: pointer; border: 1px solid #000; flex-shrink: 0;",
-                                        onclick: `loadRoute('/manga/reader?m=${code}&v=${chapter.v}&c=${chapter.c}${imageBase !== 'manga/' ? `&prov=${primarySourceIdx}` : ''}')`
+                                        onclick: `loadRoute('/manga/reader?m=${code}&v=${chapter.v}&c=${chapter.c}${imageBase !== 'manga/' ? (primarySourceIdx==0) ? '' : `&prov=${primarySourceIdx}` : ''}')`
                                     },
                                     [`div-vol-info-${seriesIndex}-${chapter.v}`]: {
                                         style: "display: flex; flex-direction: column;",
@@ -292,7 +292,7 @@ export default {
                         let imageBase = allBaseUrls[primarySourceIdx] || "manga/";
                         let provParam = "";
                         if (imageBase !== 'manga/' && imageBase !== '/manga/') {
-                            if(primarySourceIdx != 0) provParam = `&prov=${primarySourceIdx}`;
+                            provParam = primarySourceIdx == 0 ? '' : `&prov=${primarySourceIdx}`;
                         }
                         
 
