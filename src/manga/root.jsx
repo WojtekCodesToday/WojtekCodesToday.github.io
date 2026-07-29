@@ -220,15 +220,20 @@ export default {
                 };
             });
 
+            const remoteIndices = allBaseUrls.map((b,i) => (b !== 'manga/' && b !== '/manga/' ? i : -1)).filter(i=>i!==-1);
+            // on wjgm.pl remotes = [1] (assets)
+
             const pickPreferred = (sources) => {
-                if (!sources || !sources.length) return allBaseUrls.findIndex(b => b !== 'manga/') !== -1 ? allBaseUrls.findIndex(b => b !== 'manga/') : 0;
-                // always prefer remote (not manga/) on production
-                const remote = sources.filter(id => {
-                    const b = allBaseUrls[id];
-                    return b && b !== 'manga/' && b !== '/manga/';
-                });
-                if (remote.length) return remote[0];
-                return sources[0];
+                if (!isLocalHost) {
+                    // 1. prefer remote that actually has this chapter
+                    if (sources?.length) {
+                        const inSrc = sources.filter(id => remoteIndices.includes(id));
+                        if (inSrc.length) return inSrc[0];
+                    }
+                    // 2. if no remote in sources (assets failed CORS or self only), force first remote anyway
+                    if (remoteIndices.length) return remoteIndices[0];
+                }
+                return sources?.[0] ?? 0;
             };
 
             let listObj = {};
@@ -287,15 +292,16 @@ export default {
                         let imageBase = allBaseUrls[primarySourceIdx] || "manga/";
                         let provParam = "";
                         if (imageBase !== 'manga/' && imageBase !== '/manga/') {
-                            provParam = `&prov=${primarySourceIdx}`;
+                            if(primarySourceIdx != 0) provParam = `&prov=${primarySourceIdx}`;
                         }
+                        
 
                         const qStr = `?m=${code}&v=${chapter.v}&c=${chapter.c}${provParam}${startPage == "0" ? "" : `&p=${startPage}`}`;
 
                         listObj[`div-ch-${seriesIndex}-${j}`] = {
                             class: "manga_panel",
                             style: "margin-bottom:10px; cursor:pointer; display:flex; flex-direction:column; padding:12px; margin-left: 20px;",
-                            onclick: `window.location.href='/manga/reader${qStr}'`,
+                            onclick: `loadRoute('/manga/reader${qStr}')`,
                             child: {
                                 [`span-meta-${seriesIndex}-${j}`]: {
                                     child: `${entry.n} — vol ${chapter.v} ch ${chapter.c}`,
