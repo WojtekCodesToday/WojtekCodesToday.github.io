@@ -43,7 +43,7 @@ export default {
                         <h2>Q&A:</h2>
                         <ul>
                             <li>Is this piracy?
-                                <ul>No, i make the content myself.<br />thanks for asking though.<br />Also the mangas are provided through a repository/provider.</ul>
+                                <ul>No, i make the content myself.<br/>thanks for asking though.<br/>Also the mangas are provided through a repository/provider.</ul>
                             </li>
                             <br />
                             <li>Where can i donate to you?
@@ -70,6 +70,7 @@ export default {
         const filterC = params.get("c") || "";
         const filterM = params.get("m") || "";
         const startPage = params.get("p") || "0";
+        const isLocalHost = ['localhost','127.0.0.1'].includes(window.location.hostname);
 
         const searchUI = {
             "div-search": {
@@ -111,9 +112,27 @@ export default {
         };
 
         try {
-            let provRes = await fetch(`manga/providers.json`).catch(() => ({ json: () => [] }));
-            if (!provRes.ok) provRes = await fetch(`providers.json`).catch(() => ({ json: () => [] }));
-            const jsonProviders = await provRes.json();
+            // --- PATCH 1: fetch providers.json from same dir as this jsx file ---
+            const tryFetchJson = async (url) => {
+                try {
+                    const r = await fetch(url);
+                    if (r.ok) return await r.json();
+                } catch {}
+                return null;
+            };
+
+            let jsonProviders = null;
+            // same directory as this file - works in dev and after bundling if providers.json is copied
+            try {
+                const localUrl = new URL('./providers.json', import.meta.url);
+                jsonProviders = await tryFetchJson(localUrl);
+            } catch {}
+
+            if (!jsonProviders) jsonProviders = await tryFetchJson('/manga/providers.json');
+            if (!jsonProviders) jsonProviders = await tryFetchJson('./providers.json');
+            if (!jsonProviders) jsonProviders = await tryFetchJson('providers.json');
+            if (!jsonProviders) jsonProviders = ["self", "assets.wjgm.pl"];
+
             const urlProv = params.get("prov");
 
             const norm = (u) => {
@@ -127,14 +146,18 @@ export default {
             if (urlProv && !uniqueProviders.includes(urlProv)) uniqueProviders.push(urlProv);
             const allBaseUrls = uniqueProviders.map(norm);
 
+            // --- PATCH 2: only need mangas.json, if fails -> continue ---
             const providerData = await Promise.all(allBaseUrls.map(async (base, pIdx) => {
                 try {
                     const regReq = await fetch(`${base}mangas.json`);
-                    if (!regReq.ok) return null;
+                    if (!regReq.ok) {
+                        console.warn(`[manga] skipping provider ${base} - mangas.json ${regReq.status}`);
+                        return null;
+                    }
                     const registry = await regReq.json();
 
-                    let provID = pIdx - 1;
-                    if (provID >= jsonProviders.length) provID = urlProv;
+                    let provID = pIdx; // 0=self, 1=assets.wjgm.pl - NO MORE -1 HACK
+                    // if urlProv was appended, keep its index
 
                     const manifests = await Promise.all(registry.map(async (manga) => {
                         try {
@@ -143,8 +166,11 @@ export default {
                         } catch { return null; }
                     }));
 
-                    return { provID, manifests: manifests.filter(m => m) };
-                } catch { return null; }
+                    return { provID, base, manifests: manifests.filter(m => m) };
+                } catch (e) {
+                    console.warn(`[manga] provider ${base} error, skipping`, e);
+                    return null;
+                }
             }));
 
             const activeData = providerData.filter(p => p);
@@ -171,11 +197,21 @@ export default {
 
             masterRegistry.forEach((entry, code) => {
                 searchUI["div-search"].child["select-m"].child[`option-${code}`] = {
-                    value: code, 
+                    value: code,
                     child: entry.n,
                     ...(filterM === code ? { selected: "selected" } : {})
                 };
             });
+
+            // helper: prefer remote provider on production
+            const pickPreferred = (sources) => {
+                if (!sources || !sources.length) return 0;
+                // sources are provIDs that actually had mangas.json
+                const avail = sources.map(id => ({ id, base: allBaseUrls[id] })).filter(x => x.base);
+                const remote = avail.filter(x => x.base !== 'manga/' && x.base !== '/manga/');
+                if (!isLocalHost && remote.length) return remote[0].id;
+                return avail[0]?.id ?? sources[0];
+            };
 
             let listObj = {};
             let seriesIndex = 0;
@@ -197,9 +233,9 @@ export default {
                     chapters.forEach((chapter, j) => {
                         if (chapter.v !== lastVol) {
                             const isLatest = chapter.v === maxVol;
-                            const primarySourceIdx = chapter.sources[0];
+                            const primarySourceIdx = pickPreferred(chapter.sources);
+                            let imageBase = allBaseUrls[primarySourceIdx] || "manga/";
 
-                            let imageBase = allBaseUrls[primarySourceIdx + 1] || "/manga/";
                             listObj[`div-vol-header-${seriesIndex}-${chapter.v}`] = {
                                 class: "vol-header",
                                 child: {
@@ -207,7 +243,7 @@ export default {
                                         src: `${imageBase}${code}/v${chapter.v}.png`.replace(/([^:]\/)\/+/g, "$1"),
                                         onerror: "this.style.display='none'",
                                         style: "width: 120px; cursor: pointer; border: 1px solid #000; flex-shrink: 0;",
-                                        onclick: `loadRoute('/manga/reader?m=${code}&v=${chapter.v}&c=${chapter.c}')`
+                                        onclick: `loadRoute('/manga/reader?m=${code}&v=${chapter.v}&c=${chapter.c}${imageBase !== 'manga/' ? `&prov=${primarySourceIdx}` : ''}')`
                                     },
                                     [`div-vol-info-${seriesIndex}-${chapter.v}`]: {
                                         style: "display: flex; flex-direction: column;",
@@ -229,13 +265,16 @@ export default {
                             lastVol = chapter.v;
                         }
 
+                        const primarySourceIdx = pickPreferred(chapter.sources);
+                        const imageBase = allBaseUrls[primarySourceIdx] || "manga/";
                         let provParam = "";
-                        const hasSelf = chapter.sources.includes(-1);
-                        if (!hasSelf && chapter.sources.length === 1) {
-                            provParam = `&prov=${chapter.sources[0]}`;
+                        // only add prov if it's not self
+                        if (imageBase !== 'manga/' && imageBase !== '/manga/') {
+                            provParam = `&prov=${primarySourceIdx}`;
                         }
 
                         const qStr = `?m=${code}&v=${chapter.v}&c=${chapter.c}${provParam}${startPage == "0" ? "" : `&p=${startPage}`}`;
+
                         listObj[`div-ch-${seriesIndex}-${j}`] = {
                             class: "manga_panel",
                             style: "margin-bottom:10px; cursor:pointer; display:flex; flex-direction:column; padding:12px; margin-left: 20px;",

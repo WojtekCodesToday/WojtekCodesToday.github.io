@@ -2,6 +2,10 @@ let currentRouteName = null;
 let currentStyleLink = null;
 let navToken = 0;
 
+// --- caches for browser reuse ---
+const moduleCache = new Map(); // scriptPath -> imported module
+const resolveCache = new Map(); // cleanPath -> scriptPath
+
 function applyStyles(cssPath) {
     if (currentStyleLink) {
         currentStyleLink.remove();
@@ -17,21 +21,33 @@ function applyStyles(cssPath) {
 }
 
 async function resolveScriptPath(path) {
-    if (path === "" || path === "/") return "/root.js";
+    // cached -> instant, no HEAD fetch
+    if (resolveCache.has(path)) return resolveCache.get(path);
 
-    const directPath = `${path}.js`;
-    const response = await fetch(directPath, { method: 'HEAD' });
-
-    if (response.ok && response.headers.get('content-type')?.includes('javascript')) {
-        return directPath;
+    if (path === "" || path === "/") {
+        resolveCache.set(path, "/root.js");
+        return "/root.js";
     }
 
-    return `${path}/root.js`;
+    const directPath = `${path}.js`;
+    try {
+        // browser will cache this HEAD if server sends cache headers,
+        // but we only do it once per path thanks to resolveCache
+        const response = await fetch(directPath, { method: 'HEAD', cache: 'force-cache' });
+        if (response.ok && response.headers.get('content-type')?.includes('javascript')) {
+            resolveCache.set(path, directPath);
+            return directPath;
+        }
+    } catch {}
+
+    const fallback = `${path}/root.js`;
+    resolveCache.set(path, fallback);
+    return fallback;
 }
 
-async function loadRoute(rawPath) {
+// loadRoute(rawPath, {push:true}) -> push = false when called from popstate
+async function loadRoute(rawPath, { push = true } = {}) {
     let cleanPath = rawPath.split('?')[0].split('#')[0];
-    
     if (cleanPath.length > 1 && cleanPath.endsWith('/')) {
         cleanPath = cleanPath.slice(0, -1);
     }
@@ -39,8 +55,16 @@ async function loadRoute(rawPath) {
     const thisNav = ++navToken;
 
     let scriptPath = await resolveScriptPath(cleanPath);
-    const module = await import(scriptPath);
-    const route = module.default;
+
+    // --- cache entire JS file in memory, reuse browser's module cache ---
+    let mod;
+    if (moduleCache.has(scriptPath)) {
+        mod = moduleCache.get(scriptPath);
+    } else {
+        mod = await import(scriptPath);
+        moduleCache.set(scriptPath, mod);
+    }
+    const route = mod.default;
 
     if (!route || typeof route.render !== 'function') {
         console.error(`Route export not found in ${scriptPath}`);
@@ -52,53 +76,57 @@ async function loadRoute(rawPath) {
     if (typeof route.load === 'function') {
         data = await route.load();
     }
-    
-    if (thisNav !== navToken) return;
+    if (thisNav !== navToken) return; // cancelled by newer navigation
 
     if (route.title) document.title = route.title;
     applyStyles(route.css);
 
     let vdom = route.render(data);
     document.getElementById("root").innerHTML = roost.convert(vdom);
-    if(window.history.pushState)window.history.pushState(null, '', rawPath);
+
+    // IMPORTANT: only push when it's a new navigation, not on popstate
+    if (push) {
+        const currentFull = window.location.pathname + window.location.search;
+        if (currentFull !== rawPath) {
+            window.history.pushState({ path: rawPath }, '', rawPath);
+        }
+    }
+
+    currentRouteName = cleanPath;
 
     if (typeof route.mount === 'function') {
         await route.mount(data);
+    }
+    if (typeof route.unmount === 'function') {
+        // store unmount for next route if you want cleanup
+        loadRoute._lastUnmount = route.unmount;
     }
 }
 
 window["loadRoute"] = loadRoute;
 
-function loadScript (src, { module = false } = {}) {
+function loadScript(src, { module = false } = {}) {
     return new Promise((resolve, reject) => {
         if (Array.from(document.scripts).some(script => script.src === src)) {
             resolve();
             return;
         }
-
         const script = document.createElement("script");
         script.src = src;
         script.async = false;
-
-        if (module) {
-            script.type = "module";
-        }
-
+        if (module) script.type = "module";
         script.onload = resolve;
         script.onerror = () => reject(new Error(`Failed to load ${src}`));
-
         document.body.appendChild(script);
     });
-};
+}
 
 window["loadScript"] = loadScript;
 
 document.addEventListener('click', function(e) {
     let target = e.target.closest('a');
     if (!target || !target.href) return;
-
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-
     if (target.target === '_blank' || target.hasAttribute('download') || target.hasAttribute('data-external')) return;
     if (target.origin !== window.location.origin) return;
 
@@ -106,20 +134,20 @@ document.addEventListener('click', function(e) {
 
     let lastSegment = target.pathname.substring(target.pathname.lastIndexOf('/') + 1);
     let hasExtension = lastSegment.includes('.');
-
     if (hasExtension) return;
 
     e.preventDefault();
 
     let currentFullPath = window.location.pathname + window.location.search;
-
     if (path !== currentFullPath) {
-        loadRoute(path);
+        loadRoute(path, { push: true });
     }
 });
 
-window.addEventListener('popstate', () => {
-    loadRoute(window.location.pathname + window.location.search);
+window.addEventListener('popstate', (e) => {
+    // back/forward -> load without pushing a new entry
+    const path = e.state?.path || window.location.pathname + window.location.search;
+    loadRoute(path, { push: false });
 });
 
 let mobile = false;
