@@ -112,26 +112,36 @@ export default {
         };
 
         try {
-            // --- PATCH 1: fetch providers.json from same dir as this jsx file ---
             const tryFetchJson = async (url) => {
                 try {
-                    const r = await fetch(url);
-                    if (r.ok) return await r.json();
-                } catch {}
-                return null;
+                    const r = await fetch(url, { cache: 'no-store' });
+                    if (!r.ok) return null;
+                    const text = await r.text();
+                    // GitHub Pages SPA fallback returns HTML with 200 OK - detect it
+                    if (!text || text.trim().startsWith('<') || text.trim().startsWith('<!DOCTYPE')) return null;
+                    const j = JSON.parse(text);
+                    return j;
+                } catch { return null; }
             };
 
             let jsonProviders = null;
-            // same directory as this file - works in dev and after bundling if providers.json is copied
+            // fetch providers.json from same dir as this jsx
             try {
                 const localUrl = new URL('./providers.json', import.meta.url);
                 jsonProviders = await tryFetchJson(localUrl);
             } catch {}
-
             if (!jsonProviders) jsonProviders = await tryFetchJson('/manga/providers.json');
             if (!jsonProviders) jsonProviders = await tryFetchJson('./providers.json');
             if (!jsonProviders) jsonProviders = await tryFetchJson('providers.json');
             if (!jsonProviders) jsonProviders = ["self", "assets.wjgm.pl"];
+
+            // PRODUCTION FIX: on wjgm.pl never use self, it doesn't exist
+            if (!isLocalHost) {
+                const before = jsonProviders.length;
+                jsonProviders = jsonProviders.filter(p => String(p).toLowerCase() !== 'self');
+                if (before !== jsonProviders.length) console.log('[manga] filtered out self on production');
+                if (jsonProviders.length === 0) jsonProviders = ["assets.wjgm.pl"];
+            }
 
             const urlProv = params.get("prov");
 
@@ -146,23 +156,32 @@ export default {
             if (urlProv && !uniqueProviders.includes(urlProv)) uniqueProviders.push(urlProv);
             const allBaseUrls = uniqueProviders.map(norm);
 
-            // --- PATCH 2: only need mangas.json, if fails -> continue ---
+            // only need mangas.json, if fails or not JSON -> skip
             const providerData = await Promise.all(allBaseUrls.map(async (base, pIdx) => {
                 try {
-                    const regReq = await fetch(`${base}mangas.json`);
+                    const regReq = await fetch(`${base}mangas.json`, { cache: 'no-store' });
                     if (!regReq.ok) {
                         console.warn(`[manga] skipping provider ${base} - mangas.json ${regReq.status}`);
                         return null;
                     }
-                    const registry = await regReq.json();
+                    const text = await regReq.text();
+                    if (!text || text.trim().startsWith('<')) {
+                        console.warn(`[manga] skipping provider ${base} - returned HTML not JSON (SPA fallback)`);
+                        return null;
+                    }
+                    let registry;
+                    try { registry = JSON.parse(text); } catch { return null; }
+                    if (!Array.isArray(registry)) return null;
 
-                    let provID = pIdx; // 0=self, 1=assets.wjgm.pl - NO MORE -1 HACK
-                    // if urlProv was appended, keep its index
+                    let provID = pIdx; // 0=self (filtered on prod), 1=assets
 
                     const manifests = await Promise.all(registry.map(async (manga) => {
                         try {
                             const chReq = await fetch(`${base}${manga.c}/ch.json`);
-                            return chReq.ok ? { manga: manga.c, chapters: await chReq.json(), meta: manga } : null;
+                            if (!chReq.ok) return null;
+                            const chText = await chReq.text();
+                            if (chText.trim().startsWith('<')) return null;
+                            return { manga: manga.c, chapters: JSON.parse(chText), meta: manga };
                         } catch { return null; }
                     }));
 
@@ -181,10 +200,8 @@ export default {
             activeData.forEach(prov => {
                 prov.manifests.forEach(m => {
                     if (!masterRegistry.has(m.manga)) masterRegistry.set(m.manga, m.meta);
-
                     if (!mergedLibrary.has(m.manga)) mergedLibrary.set(m.manga, new Map());
                     const seriesMap = mergedLibrary.get(m.manga);
-
                     m.chapters.forEach(ch => {
                         const key = `${ch.v}_${ch.c}`;
                         if (!seriesMap.has(key)) {
@@ -203,14 +220,15 @@ export default {
                 };
             });
 
-            // helper: prefer remote provider on production
             const pickPreferred = (sources) => {
-                if (!sources || !sources.length) return 0;
-                // sources are provIDs that actually had mangas.json
-                const avail = sources.map(id => ({ id, base: allBaseUrls[id] })).filter(x => x.base);
-                const remote = avail.filter(x => x.base !== 'manga/' && x.base !== '/manga/');
-                if (!isLocalHost && remote.length) return remote[0].id;
-                return avail[0]?.id ?? sources[0];
+                if (!sources || !sources.length) return allBaseUrls.findIndex(b => b !== 'manga/') !== -1 ? allBaseUrls.findIndex(b => b !== 'manga/') : 0;
+                // always prefer remote (not manga/) on production
+                const remote = sources.filter(id => {
+                    const b = allBaseUrls[id];
+                    return b && b !== 'manga/' && b !== '/manga/';
+                });
+                if (remote.length) return remote[0];
+                return sources[0];
             };
 
             let listObj = {};
@@ -266,9 +284,8 @@ export default {
                         }
 
                         const primarySourceIdx = pickPreferred(chapter.sources);
-                        const imageBase = allBaseUrls[primarySourceIdx] || "manga/";
+                        let imageBase = allBaseUrls[primarySourceIdx] || "manga/";
                         let provParam = "";
-                        // only add prov if it's not self
                         if (imageBase !== 'manga/' && imageBase !== '/manga/') {
                             provParam = `&prov=${primarySourceIdx}`;
                         }
@@ -295,7 +312,6 @@ export default {
                 }
             });
 
-            // Convert Roost JSON and inject search UI with populated options + results into #content
             content.innerHTML = roost.convert(searchUI) + `<div id="results">${roost.convert(listObj) || "<p>Nothing found.</p>"}</div>`;
 
         } catch (err) {
