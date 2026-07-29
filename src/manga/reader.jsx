@@ -54,12 +54,10 @@ export default {
             </>
         );
     },
-
-    mount: async () => {
-        await loadScript("https://cdn.jsdelivr.net/gh/jagenjo/Canvas2DtoWebGL/src/gl-matrix-min.js");
-        await loadScript("https://cdn.jsdelivr.net/gh/jagenjo/Canvas2DtoWebGL/src/litegl.min.js");
-        await loadScript("https://cdn.jsdelivr.net/gh/jagenjo/Canvas2DtoWebGL/src/Canvas2DtoWebGL.js");
-
-        await loadScript("/manga/reader_js.js");
-    }
+    js: [
+    "https://cdn.jsdelivr.net/gh/jagenjo/Canvas2DtoWebGL/src/gl-matrix-min.js",
+    "https://cdn.jsdelivr.net/gh/jagenjo/Canvas2DtoWebGL/src/litegl.min.js",
+    "https://cdn.jsdelivr.net/gh/jagenjo/Canvas2DtoWebGL/src/Canvas2DtoWebGL.js",
+    { src: "/manga/reader_js.js", reload: true },
+    ],
 };

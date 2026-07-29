@@ -1,6 +1,6 @@
 import { page } from "./_page.js";
 export default {
-    title: "hom",
+    title: "Home",
     render: () => {
       return (
         <>
