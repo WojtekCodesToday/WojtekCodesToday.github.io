@@ -9,7 +9,7 @@ const scriptPromises = new Map(); // absolute src -> Promise (dedupe in-flight l
 const inFlight = new Map();     // cleanPath -> Promise (dedupe concurrent resolves)
 
 // file extensions to try, in order, for each candidate location
-const ROUTE_EXTS = ['.js', '.jsx'];
+const ROUTE_EXTS = ['.js'];
 
 /* ------------------------------------------------------------------ */
 /* helpers                                                             */

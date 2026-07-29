@@ -1,5 +1,3 @@
-import { page } from "../_page.js";
-
 export default {
     title: "Manga",
     css: "/blog.css",

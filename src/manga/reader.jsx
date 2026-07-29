@@ -1,7 +1,7 @@
 export default {
     title: "reader",
 
-    css: "/manga/manga.css",
+    css: "./manga.css",
 
     render: () => {
         return (

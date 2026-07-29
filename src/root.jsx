@@ -1,4 +1,3 @@
-import { page } from "./_page.js";
 export default {
     title: "Home",
     render: () => {

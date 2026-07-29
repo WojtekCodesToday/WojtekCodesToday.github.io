@@ -1,5 +1,3 @@
-import "../lib/roost-ext-md.js";
-
 function getBlogQuery() {
     const params = new URLSearchParams(window.location.search);
     return params.get("q")?.toLowerCase() || "";
@@ -74,7 +72,7 @@ export default {
     title: "Blog",
 
     css: "/blog.css",
-
+    js: "../lib/roost-ext-md.js",
     render: () => {
         return (
             <>
@@ -105,8 +103,6 @@ export default {
         }
 
         const q = getBlogQuery();
-
-        console.log(q);
 
         if (!q) {
             await loadPostList(content);
