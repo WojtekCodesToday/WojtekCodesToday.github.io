@@ -13,6 +13,7 @@
     "@babel/core": "^8.0.1",
     "@babel/preset-env": "^8.0.2",
     "@babel/preset-react": "^8.0.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "terser": "^5.49.0"
   }
 }

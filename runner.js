@@ -7,7 +7,7 @@ if(process.argv.length > 2){
                      .split('\n')
                      .map(cmd => cmd.trim())
                      .filter(cmd => cmd && !cmd.startsWith('#'));
-    
+                     
     commands.forEach(command => {
         console.log(`\n> ${command}\n`);
         execSync(command, { stdio: 'inherit' }); 
