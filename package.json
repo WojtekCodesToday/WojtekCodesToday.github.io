@@ -1,0 +1,18 @@
+{
+  "name": "website",
+  "version": "1.0.0",
+  "description": "",
+  "license": "CC0-1.0",
+  "author": "wojtekgame",
+  "scripts": {
+    "build": "node runner.js build.sh",
+    "dev": "node runner.js dev.sh"
+  },
+  "dependencies": {
+    "@babel/cli": "^8.0.4",
+    "@babel/core": "^8.0.1",
+    "@babel/preset-env": "^8.0.2",
+    "@babel/preset-react": "^8.0.1",
+    "express": "^5.2.1"
+  }
+}
