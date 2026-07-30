@@ -609,9 +609,13 @@ function createInteractionHandler(state, renderer, dom) {
     };
 
     return {
-        bindEvents: function(onRefreshCall) {
-            window.addEventListener("mousemove", function(e) { lastMousePos.x = e.pageX; lastMousePos.y = e.pageY; });
-            
+        bindEvents: function(onRefreshCall, signal) {
+            window.addEventListener("mousemove", function(e) { lastMousePos.x = e.pageX; lastMousePos.y = e.pageY; }, { signal });
+
+            // dom.container is recreated fresh on every render (it's part of
+            // #root's innerHTML), so its own listeners die naturally when the
+            // element is discarded — only window/document listeners need
+            // explicit teardown via the signal.
             dom.container.addEventListener("wheel", function(e) {
                 e.preventDefault();
                 dom.container.scrollTop += e.deltaY;
@@ -631,16 +635,16 @@ function createInteractionHandler(state, renderer, dom) {
                     e.preventDefault(); dom.container.scrollTop -= dom.container.clientHeight;
                     renderer.requestRender(); if (onRefreshCall) onRefreshCall();
                 }
-            });
+            }, { signal });
 
             // Event Delegation: Bind to outer container window hooks safely 
             dom.container.addEventListener("mousedown", handleDragStart);
             dom.container.addEventListener("touchstart", handleDragStart, { passive: false });
 
-            window.addEventListener("mousemove", handleDragMove);
-            window.addEventListener("touchmove", handleDragMove, { passive: false });
-            window.addEventListener("mouseup", handleDragEnd);
-            window.addEventListener("touchend", handleDragEnd);
+            window.addEventListener("mousemove", handleDragMove, { signal });
+            window.addEventListener("touchmove", handleDragMove, { passive: false, signal });
+            window.addEventListener("mouseup", handleDragEnd, { signal });
+            window.addEventListener("touchend", handleDragEnd, { signal });
 
             dom.container.addEventListener("click", function(e) {
                 if (e.target !== dom.canvas) return;
@@ -671,7 +675,7 @@ function createInteractionHandler(state, renderer, dom) {
                     dom.canvas.dispatchEvent(new CustomEvent("layoutChange"));
                     renderer.requestRender();
                 }
-            });
+            }, { signal });
         },
         rebindCanvasEvents: function() {
             // Left intentionally structural; Event Delegation eliminates node binding re-initialization passes completely
@@ -682,6 +686,20 @@ function createInteractionHandler(state, renderer, dom) {
 
 // --- 5. CENTRAL APPLICATION BOOTSTRAPPER ---
 (function() {
+    // Defensive: if a previous instance's unmount() was skipped for any
+    // reason (e.g. an uncaught error mid-navigation), tear it down before
+    // wiring up a new one, so listeners/interval/worker never double up.
+    if (window.__readerCleanup) {
+        window.__readerCleanup();
+        window.__readerCleanup = null;
+    }
+
+    // Every window-level listener below is registered with { signal },
+    // so a single controller.abort() in the cleanup function removes
+    // ALL of them at once — no need to keep named function references.
+    var controller = new AbortController();
+    var signal = controller.signal;
+
     var dom = {
         canvas: document.getElementById("mangaCanvas"),
         container: document.getElementById("container"),
@@ -848,7 +866,7 @@ function createInteractionHandler(state, renderer, dom) {
         if (dom.canvas) {
             dom.canvas.addEventListener("layoutChange", computeLayoutGeometry);
         }
-    });
+    }, { signal });
 
     dom.previous.onclick = function() { if (state.currentChapterIdx > 0) executeChapterLoad(state.chaptersList[state.currentChapterIdx - 1]); };
     dom.next.onclick = function() { if (state.currentChapterIdx < state.chaptersList.length - 1) executeChapterLoad(state.chaptersList[state.currentChapterIdx + 1]); };
@@ -856,9 +874,9 @@ function createInteractionHandler(state, renderer, dom) {
     if (dom.canvas) {
         dom.canvas.addEventListener("layoutChange", computeLayoutGeometry);
     }
-    interaction.bindEvents(refreshFooterUiPosition);
+    interaction.bindEvents(refreshFooterUiPosition, signal);
 
-    setInterval(function() { renderer.requestRender(); }, 500);
+    var renderInterval = setInterval(function() { renderer.requestRender(); }, 500);
 
     try {
         worker = new Worker("/manga/loader.js");
@@ -872,6 +890,13 @@ function createInteractionHandler(state, renderer, dom) {
     } catch(err) {
         console.error("Critical Thread Failure: Web Worker creation blocked.", err);
     }
+
+    window.__readerCleanup = function() {
+        controller.abort();          // removes every { signal }-scoped listener above
+        clearInterval(renderInterval);
+        if (worker) worker.terminate();
+        if (dom.tooltip && dom.tooltip.parentNode) dom.tooltip.parentNode.removeChild(dom.tooltip);
+    };
 
     network.resolveBase().then(function(base) {
         providerBase = base;
