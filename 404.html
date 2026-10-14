@@ -9,10 +9,14 @@
     If you aren't redirected, <a id="x" href="#" onload="">click here</a>.</p>
     <script>
         const newURL = "https://wjgm.pl" + 
-            (window.location.pathname.startsWith('/')) ?
-                    window.location.pathname
-                :
-                    '/' + window.location.pathname + window.location.search + window.location.hash;
+                            (   //if
+                                (window.location.pathname.startsWith('/')) ? // {
+                                    window.location.pathname
+                                : // } else {
+                                    '/' + window.location.pathname
+                                // }
+                            )
+                        + window.location.search + window.location.hash;
         
         document.getElementById('x').href = newURL;
         window.location.replace(newURL);
