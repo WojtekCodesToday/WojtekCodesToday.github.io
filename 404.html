@@ -6,16 +6,15 @@
     <title>Redirecting...</title>
 </head>
 <body>
-    <p>Moving to wjgm.pl<br>
-    <img src="https://wjgm.pl" loading="lazy">
-    <br>
-    If you aren't redirected, <a id="manual-link" href="#">click here</a>.</p>
-    
+    If you aren't redirected, <a id="x" href="#" onload="">click here</a>.</p>
     <script>
-        const l = window.location;
-        const cleanPath = l.pathname.startsWith('/') ? l.pathname : '/' + l.pathname;
-        const newURL = "https://wjgm.pl" + cleanPath + l.search + l.hash;
-        document.getElementById('manual-link').href = newURL;
+        const newURL = "https://wjgm.pl" + 
+            (window.location.pathname.startsWith('/')) ?
+                    window.location.pathname
+                :
+                    '/' + window.location.pathname + window.location.search + window.location.hash;
+        
+        document.getElementById('x').href = newURL;
         window.location.replace(newURL);
     </script>
 </body>
